@@ -10,6 +10,6 @@ Advanced MAC Address Changer for Linux systems
 
 ## Installation
 ```bash
-git clone https://github.com/yourusername/mac-changer.git
+git clone https://github.com/GTR-PR0/mac-changer.git
 cd mac-changer
 sudo ./install.sh
