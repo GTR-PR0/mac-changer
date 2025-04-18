@@ -16,9 +16,181 @@ NC='\033[0m' # No Color
 check_dependencies() {
     local missing=()
     local packages=("iproute2" "openssl")
-
+    
     for pkg in "${packages[@]}"; do
         if ! dpkg -l | grep -q "^ii  $pkg "; then
             missing+=("$pkg")
         fi
-W10: Warning: Changing a readonly file                        11,11         Top
+    done
+
+    if [ ${#missing[@]} -ne 0 ]; then
+        echo -e "${RED}Missing packages: ${missing[*]}${NC}"
+        echo -e "${YELLOW}Installing dependencies...${NC}"
+        sudo apt-get update && sudo apt-get install -y "${missing[@]}"
+    fi
+}
+
+# Validate MAC address format
+validate_mac() {
+    local mac=$1
+    if [[ "$mac" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Generate random MAC
+generate_random_mac() {
+    local vendors=("00:0c:29" "00:50:56" "00:1c:42" "00:1d:0f" "00:24:1d")
+    local vendor=${vendors[$RANDOM % ${#vendors[@]}]}
+    local random_part=$(openssl rand -hex 3 | sed 's/\(..\)/\1:/g; s/.$//')
+    echo "$vendor:$random_part"
+}
+
+# Change MAC address
+change_mac() {
+    local interface=$1
+    local new_mac=$2
+    
+    # Get current MAC
+    local current_mac=$(ip link show $interface | awk '/ether/ {print $2}')
+    
+    # Show loading animation
+    echo -ne "${WHITE}Changing MAC Address .${NC}"
+    sleep 0.5
+    echo -ne "${WHITE} .${NC}"
+    sleep 0.5
+    echo -ne "${WHITE} .${NC}"
+    sleep 0.5
+    echo -ne "\r${WHITE}Changing MAC Address ..${NC}"
+    sleep 0.5
+    echo -ne "${WHITE} .${NC}"
+    sleep 0.5
+    echo -ne "${WHITE} .${NC}"
+    sleep 0.5
+    echo -ne "\r${WHITE}Changing MAC Address ...${NC}"
+    sleep 0.5
+    echo -ne "${WHITE} .${NC}"
+    sleep 0.5
+    echo -ne "\r${WHITE}Changing MAC Address .${NC}"
+    sleep 0.5
+    echo -e "\n"
+    
+    # Change MAC
+    sudo ip link set dev $interface down
+    sudo ip link set dev $interface address $new_mac
+    sudo ip link set dev $interface up
+    
+    # Verify change
+    local updated_mac=$(ip link show $interface | awk '/ether/ {print $2}')
+    
+    if [ "$updated_mac" == "$new_mac" ]; then
+        echo -e "${GREEN}MAC address changed successfully!${NC}"
+        echo -e "${YELLOW}Old MAC: $current_mac${NC}"
+        echo -e "${YELLOW}New MAC: $updated_mac${NC}"
+    else
+        echo -e "${RED}Failed to change MAC address!${NC}"
+    fi
+}
+
+# Main menu
+main_menu() {
+    clear
+    echo -e "${WHITE}==================================${NC}"
+    echo -e "${WHITE} MAC Changer For Linux${NC}"
+    echo -e "${WHITE} By: SharpMalware${NC}"
+    echo -e "${WHITE}==================================${NC}"
+    echo ""
+    
+    # Get available interfaces
+    local interfaces=($(ip -o link show | awk -F': ' '{print $2}' | grep -v lo))
+    
+    # Show interface selection
+    echo -e "${WHITE}Available network interfaces:${NC}"
+    for i in "${!interfaces[@]}"; do
+        echo "$(($i+1)). ${interfaces[$i]}"
+    done
+    echo ""
+    
+    # Get user selection
+    read -p "${WHITE}<<< Select interface (1-${#interfaces[@]}): ${NC}" choice
+    
+    # Validate selection
+    if [[ ! "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "${#interfaces[@]}" ]; then
+        echo -e "${RED}Invalid selection!${NC}"
+        sleep 2
+        main_menu
+        return
+    fi
+    
+    local selected_interface="${interfaces[$(($choice-1))]}"
+    
+    # Show action menu
+    while true; do
+        echo ""
+        echo -e "${WHITE}Selected interface: $selected_interface${NC}"
+        echo -e "${WHITE}Current MAC: $(ip link show $selected_interface | awk '/ether/ {print $2}')${NC}"
+        echo ""
+        echo "1. Change to specific MAC (hmac)"
+        echo "2. Change to random MAC (rmac)"
+        echo "3. Return to main menu"
+        echo "4. Exit"
+        echo ""
+        
+        read -p "${WHITE}<<< Select option: ${NC}" option
+        
+        case $option in
+            1|hmac)
+                while true; do
+                    echo ""
+                    echo -e "${WHITE}Enter new MAC address (format: XX:XX:XX:XX:XX:XX)${NC}"
+                    echo -e "${WHITE}or type 'return' to go back${NC}"
+                    read -p "${WHITE}<<< New MAC: ${NC}" new_mac
+                    
+                    if [ "$new_mac" == "return" ]; then
+                        break
+                    fi
+                    
+                    if validate_mac "$new_mac"; then
+                        change_mac "$selected_interface" "$new_mac"
+                        read -p "${WHITE}<<< Press enter to continue...${NC}"
+                        break
+                    else
+                        echo -e "${RED}Invalid MAC address format! Please try again.${NC}"
+                    fi
+                done
+                ;;
+            2|rmac)
+                local random_mac=$(generate_random_mac)
+                echo -e "${WHITE}Generated random MAC: $random_mac${NC}"
+                change_mac "$selected_interface" "$random_mac"
+                read -p "${WHITE}<<< Press enter to continue...${NC}"
+                ;;
+            3|return)
+                main_menu
+                return
+                ;;
+            4|exit)
+                echo -e "${GREEN}Goodbye!${NC}"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}Invalid option!${NC}"
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+# Check root privileges
+if [ "$(id -u)" != "0" ]; then
+    echo -e "${RED}This script must be run as root${NC}"
+    exit 1
+fi
+
+# Check dependencies
+check_dependencies
+
+# Start the application
+main_menu
