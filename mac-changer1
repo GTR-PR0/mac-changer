@@ -97,7 +97,7 @@ change_mac() {
 
 random_mac_loop() {
     clear
-    read -p "Enter time interval (5-60 seconds): " interval
+    read -p "Enter time interval (5-60 seconds) Recommended 15: " interval
     
    
     if [[ ! "$interval" =~ ^[0-9]+$ ]] || [ "$interval" -lt 5 ] || [ "$interval" -gt 60 ]; then
