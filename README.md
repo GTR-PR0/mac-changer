@@ -12,4 +12,5 @@ Advanced MAC Address Changer for Linux systems
 ```bash
 git clone https://github.com/GTR-PR0/mac-changer.git
 cd mac-changer
-sudo ./install.sh
+sudo chmod +x install.sh 
+sudo bash ./install.sh
